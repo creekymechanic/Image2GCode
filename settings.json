@@ -1,0 +1,17 @@
+{
+  "contour_levels": 5,
+  "contour_blur": 2,
+  "contour_min_arc": 20,
+  "contour_epsilon": 5,
+  "contour_level_min": 30,
+  "contour_level_max": 150,
+  "serial_port": "COM6",
+  "z_draw": 0,
+  "z_travel": 5,
+  "feed_draw": 3000,
+  "feed_travel": 6000,
+  "bed_offset_x": 67.5,
+  "bed_offset_y": 67.5,
+  "home_on_start": true,
+  "flip_y": true
+}
