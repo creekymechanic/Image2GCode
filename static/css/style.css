@@ -655,6 +655,30 @@ button:not(:disabled):active { transform: scale(0.97); }
 
 .ph-line.short { width: 60%; }
 
+/* ── Name badge ─────────────────────────────────────── */
+#name-badge {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 8px;
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--surface);
+}
+.name-label {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  opacity: 0.5;
+  white-space: nowrap;
+}
+.name-value {
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+}
+
 /* ── Responsive ─────────────────────────────────────── */
 @media (max-width: 960px) {
   #app {
@@ -670,4 +694,188 @@ button:not(:disabled):active { transform: scale(0.97); }
 @media (max-width: 600px) {
   #app { grid-template-columns: 1fr; }
   #preview-panel { grid-column: 1; }
+}
+
+/* ── Dev layout wrapper ──────────────────────────────── */
+#dev-layout {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+/* ── Dev video slot ──────────────────────────────────── */
+#dev-video-slot {
+  position: absolute;
+  inset: 0;
+}
+
+#dev-video-slot video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+/* ── Public stage ────────────────────────────────────── */
+#stage {
+  position: fixed;
+  inset: 0;
+  background: #000;
+  overflow: hidden;
+  z-index: 0;
+}
+
+#stage-video-wrap {
+  position: absolute;
+  inset: 0;
+}
+
+#stage-video-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.stage-layer {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+
+/* Frozen frame canvas — blurs on capture */
+#stage-canvas {
+  object-fit: cover;
+  filter: blur(0px);
+  transition: filter 5s ease;
+}
+
+#stage-canvas.is-blurred {
+  filter: blur(32px);
+}
+
+/* SVG result — fades in over the blurred photo */
+#svg-stage {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.72);
+  opacity: 0;
+  transition: opacity 0.9s ease 1.2s;
+  pointer-events: none;
+}
+
+#svg-stage.is-visible {
+  opacity: 1;
+}
+
+#svg-stage svg {
+  width: 80vmin;
+  height: 80vmin;
+  display: block;
+  flex-shrink: 0;
+  transform: scaleX(-1);
+}
+
+/* Overlay — prompt text, name, progress */
+#stage-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 10;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  padding: 0 0 56px;
+  pointer-events: none;
+  gap: 16px;
+}
+
+#stage-name {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  background: rgba(0, 0, 0, 0.55);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  padding: 6px 16px;
+}
+
+.stage-name-label {
+  font-family: var(--font-mono);
+  font-size: 0.62rem;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  color: rgba(255, 255, 255, 0.4);
+  white-space: nowrap;
+}
+
+#stage-name-value {
+  font-size: 1.25rem;
+  font-weight: 600;
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+
+#stage-prompt {
+  font-family: var(--font-mono);
+  font-size: clamp(0.85rem, 2vw, 1.1rem);
+  color: rgba(255, 255, 255, 0.55);
+  letter-spacing: 0.1em;
+  text-align: center;
+}
+
+.kbd {
+  display: inline-block;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  border-radius: 4px;
+  padding: 1px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.9em;
+  color: #fff;
+}
+
+/* Stage progress bar */
+#stage-progress-wrap {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(320px, 60vw);
+}
+
+#stage-progress-track {
+  flex: 1;
+  height: 2px;
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 1px;
+  overflow: hidden;
+}
+
+#stage-progress-fill {
+  height: 100%;
+  background: var(--teal);
+  border-radius: 1px;
+  width: 0%;
+  transition: width 0.4s ease;
+}
+
+#stage-progress-label {
+  font-size: 0.68rem;
+  color: rgba(255, 255, 255, 0.5);
+  width: 30px;
+  text-align: right;
+}
+
+/* ── Fixed dev toggle (always on top) ────────────────── */
+.stage-dev-btn {
+  position: fixed;
+  top: 16px;
+  right: 16px;
+  z-index: 100;
+  background: rgba(0, 0, 0, 0.5);
+  border-color: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.35);
+  backdrop-filter: blur(4px);
 }

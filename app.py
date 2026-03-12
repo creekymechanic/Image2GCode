@@ -1,6 +1,7 @@
 import base64
 import json
 import os
+import time
 import uuid
 import threading
 
@@ -11,8 +12,10 @@ from flask import Flask, request, jsonify, render_template, Response, stream_wit
 import config
 from processing.pipeline import run_pipeline
 from processing.svg_builder import build_svg
+from processing.text_renderer import text_to_polylines_mm, FONTS_SANS
+from processing.name_generator import generate_name, warmup as warmup_models
 from gcode.optimizer import optimize_path_order
-from gcode.generator import generate_gcode, estimate_draw_time
+from gcode.generator import generate_gcode, draw_mm_polylines, estimate_draw_time
 from serial_comm.printer import Printer, list_ports
 
 app = Flask(__name__)
@@ -47,6 +50,7 @@ def _save_settings(data: dict):
         json.dump(existing, f, indent=2)
 
 _load_settings()
+warmup_models()  # pre-load Ollama models in background so first request is fast
 
 # In-memory job store: job_id → gcode lines
 job_store: dict[str, list] = {}
@@ -86,19 +90,45 @@ def process():
         return jsonify({"error": f"Image decode failed: {e}"}), 400
 
     # Run processing pipeline
+    t0 = time.time()
     try:
         polylines = run_pipeline(bgr, style_name, config, params)
     except ValueError as e:
         return jsonify({"error": str(e)}), 400
+    print(f"[timing] pipeline (bg removal + contour): {time.time()-t0:.2f}s")
 
-    # Optimize path order (minimize pen-up travel)
+    t0 = time.time()
     polylines = optimize_path_order(polylines)
+    print(f"[timing] path optimise: {time.time()-t0:.2f}s")
 
     # Build SVG for browser preview
     svg = build_svg(polylines, config.PROCESS_SIZE)
 
     # Generate G-code
     gcode_lines = generate_gcode(polylines, config, style_name)
+
+    # ── Name + byline overlays (both above the canvas) ───────────────────────
+    t0 = time.time()
+    name = generate_name(image_b64=image_b64)
+    print(f"[timing] name generation: {time.time()-t0:.2f}s")
+
+    ox = config.BED_OFFSET_X
+    oy = config.BED_OFFSET_Y
+
+    # Single line above canvas: "Name" by IsoChin Peucker — 8mm tall, 3mm gap above canvas
+    label_polys = text_to_polylines_mm(
+        f'"{name}" by IsoChin Peucker',
+        x_mm=ox, y_mm=oy - 3 - 8,
+        height_mm=8.0,
+        font_candidates=FONTS_SANS,
+        anchor="topleft",
+    )
+
+    # Insert overlays before the G-code footer (last 4 lines: blank, Z, home, M84)
+    footer = gcode_lines[-4:]
+    gcode_lines = gcode_lines[:-4]
+    gcode_lines += ["; -- label --", *draw_mm_polylines(label_polys, config)]
+    gcode_lines += footer
 
     # Store job
     job_id = str(uuid.uuid4())[:8]
@@ -110,6 +140,7 @@ def process():
     return jsonify({
         "svg": svg,
         "job_id": job_id,
+        "name": name,
         "stats": {
             "paths": len(polylines),
             "gcode_lines": len(gcode_lines),
@@ -238,4 +269,4 @@ def get_set_config():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    app.run(debug=True, host="0.0.0.0", port=5000, ssl_context="adhoc")

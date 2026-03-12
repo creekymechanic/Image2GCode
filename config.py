@@ -16,8 +16,8 @@ BED_OFFSET_X = 67.5
 BED_OFFSET_Y = 67.5
 
 # Z axis pen control
-Z_DRAW   = 0.0   # pen touching paper (tune physically; try -0.3 if too shallow)
-Z_TRAVEL = 5.0   # pen lifted for travel
+Z_DRAW   = 5.0   # pen touching paper (tune physically; try -0.3 if too shallow)
+Z_TRAVEL = 10.0   # pen lifted for travel
 Z_SPEED  = 1000  # mm/min for Z moves (slow = more accurate pen placement)
 
 # Feed rates (mm/min)

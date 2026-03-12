@@ -12,19 +12,37 @@ const State = {
 let currentState = State.IDLE;
 let currentJobId = null;
 let capturedImageData = null;
+let isPublicView = true;  // start in public/stage mode
 let devMode = false;
 
 // Detail slider presets → contour params
-// fast: fewer, coarser lines; detailed: more, finer lines
 const DETAIL_PRESETS = {
   1: { contour_levels: 5,  contour_blur: 13, contour_min_arc: 50, contour_epsilon: 5.0 },
   2: { contour_levels: 8,  contour_blur: 9,  contour_min_arc: 30, contour_epsilon: 3.0 },
   3: { contour_levels: 14, contour_blur: 5,  contour_min_arc: 15, contour_epsilon: 1.5 },
 };
 
-// ── DOM refs ─────────────────────────────────────────
+// ── DOM refs — shared ──────────────────────────────────
 const videoEl        = document.getElementById("webcam");
 const canvasEl       = document.getElementById("capture-canvas");
+const btnDevToggle   = document.getElementById("btn-dev-toggle");
+
+// ── DOM refs — stage (public) ──────────────────────────
+const stageEl            = document.getElementById("stage");
+const stageVideoWrap     = document.getElementById("stage-video-wrap");
+const stageCanvas        = document.getElementById("stage-canvas");
+const svgStage           = document.getElementById("svg-stage");
+const stagePrompt        = document.getElementById("stage-prompt");
+const stageName          = document.getElementById("stage-name");
+const stageNameValue     = document.getElementById("stage-name-value");
+const stageProgressWrap  = document.getElementById("stage-progress-wrap");
+const stageProgressFill  = document.getElementById("stage-progress-fill");
+const stageProgressLabel = document.getElementById("stage-progress-label");
+
+// ── DOM refs — dev layout ──────────────────────────────
+const devLayout      = document.getElementById("dev-layout");
+const devVideoSlot   = document.getElementById("dev-video-slot");
+const videoWrap      = document.getElementById("video-wrap");
 const capturePreview = document.getElementById("capture-preview");
 const captureImg     = document.getElementById("capture-img");
 const recBadge       = document.getElementById("rec-badge");
@@ -38,9 +56,10 @@ const progressWrap   = document.getElementById("progress-wrap");
 const progressFill   = document.getElementById("progress-fill");
 const progressLabel  = document.getElementById("progress-label");
 const svgContainer   = document.getElementById("svg-container");
+const nameBadge      = document.getElementById("name-badge");
+const generatedName  = document.getElementById("generated-name");
 const printerPill    = document.getElementById("printer-pill");
 const printerLabel   = document.getElementById("printer-label");
-const btnDevToggle   = document.getElementById("btn-dev-toggle");
 const advancedPanel  = document.getElementById("advanced-panel");
 const detailSlider   = document.getElementById("detail-slider");
 const statsEl        = document.getElementById("stats");
@@ -71,7 +90,35 @@ const cfgHome    = document.getElementById("cfg-home");
 const cfgFlipy   = document.getElementById("cfg-flipy");
 const btnSaveConfig = document.getElementById("btn-save-config");
 
-// ── Camera ───────────────────────────────────────────
+// ── View toggle ────────────────────────────────────────
+function toggleView() {
+  isPublicView = !isPublicView;
+
+  if (isPublicView) {
+    // Switch to public/stage mode
+    stageVideoWrap.appendChild(videoEl);
+    stageEl.hidden = false;
+    devLayout.hidden = true;
+    btnDevToggle.classList.remove("active");
+    devMode = false;
+  } else {
+    // Switch to dev mode
+    devVideoSlot.appendChild(videoEl);
+    devVideoSlot.style.display = "";   // ensure slot is visible
+    capturePreview.hidden = true;      // reset capture preview
+    recBadge.classList.remove("hidden-badge");
+    stageEl.hidden = true;
+    devLayout.hidden = false;
+    btnDevToggle.classList.add("active");
+    devMode = true;
+    advancedPanel.hidden = false;
+    loadConfig();
+  }
+}
+
+btnDevToggle.addEventListener("click", toggleView);
+
+// ── Camera ────────────────────────────────────────────
 async function initCamera() {
   try {
     const stream = await navigator.mediaDevices.getUserMedia({
@@ -85,7 +132,7 @@ async function initCamera() {
   }
 }
 
-// ── Capture ──────────────────────────────────────────
+// ── Capture ───────────────────────────────────────────
 function captureFrame() {
   canvasEl.width  = videoEl.videoWidth  || 640;
   canvasEl.height = videoEl.videoHeight || 480;
@@ -93,10 +140,11 @@ function captureFrame() {
   return canvasEl.toDataURL("image/jpeg", 0.85);
 }
 
+// Dev mode capture
 btnCapture.addEventListener("click", () => {
   capturedImageData = captureFrame();
   captureImg.src = capturedImageData;
-  videoEl.style.display = "none";
+  devVideoSlot.style.display = "none";
   capturePreview.hidden = false;
   recBadge.classList.add("hidden-badge");
   setState(State.CAPTURED);
@@ -104,16 +152,77 @@ btnCapture.addEventListener("click", () => {
 
 btnRetake.addEventListener("click", () => {
   capturePreview.hidden = true;
-  videoEl.style.display = "";
+  devVideoSlot.style.display = "";
   recBadge.classList.remove("hidden-badge");
   capturedImageData = null;
   setState(State.CAMERA_READY);
 });
 
+// ── Public mode capture (space bar) ───────────────────
+function publicCapture() {
+  // Freeze frame onto stage canvas
+  stageCanvas.width  = videoEl.videoWidth  || 640;
+  stageCanvas.height = videoEl.videoHeight || 480;
+  stageCanvas.getContext("2d").drawImage(videoEl, 0, 0);
+
+  // Capture data for processing
+  canvasEl.width  = stageCanvas.width;
+  canvasEl.height = stageCanvas.height;
+  canvasEl.getContext("2d").drawImage(videoEl, 0, 0);
+  capturedImageData = canvasEl.toDataURL("image/jpeg", 0.85);
+
+  // Hide live video, show frozen canvas with blur
+  videoEl.style.visibility = "hidden";
+  stageCanvas.classList.add("is-blurred");
+
+  processImage();
+}
+
+function publicReset() {
+  setTimeout(() => {
+    // Fade out SVG
+    svgStage.classList.remove("is-visible");
+
+    // Show live video again
+    videoEl.style.visibility = "";
+
+    // Clear frozen canvas (now transparent, behind live video)
+    const ctx = stageCanvas.getContext("2d");
+    ctx.clearRect(0, 0, stageCanvas.width, stageCanvas.height);
+    stageCanvas.classList.remove("is-blurred");
+
+    // Reset overlay
+    stagePrompt.hidden = false;
+    stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
+    stageName.hidden = true;
+    stageProgressWrap.hidden = true;
+    stageProgressFill.style.width = "0%";
+
+    // Reset job state
+    capturedImageData = null;
+    currentJobId = null;
+    setTimeout(() => { svgStage.innerHTML = ""; }, 1000);
+
+    setState(State.CAMERA_READY);
+  }, 3000);
+}
+
+// ── Space bar handler ──────────────────────────────────
+document.addEventListener("keydown", (e) => {
+  if (e.code !== "Space") return;
+  if (!isPublicView) return;
+  e.preventDefault();
+
+  if (currentState === State.CAMERA_READY) {
+    publicCapture();
+  } else if (currentState === State.PREVIEW_READY) {
+    startPrint();
+  }
+});
+
 // ── Build contour params ──────────────────────────────
 function getContourParams() {
   if (devMode) {
-    // In dev mode use the explicit input values if filled
     const p = {};
     if (cfgLevels.value)  p.contour_levels    = parseInt(cfgLevels.value);
     if (cfgBlur.value)    p.contour_blur       = parseInt(cfgBlur.value);
@@ -123,11 +232,10 @@ function getContourParams() {
     if (cfgLevmax.value)  p.contour_level_max  = parseFloat(cfgLevmax.value);
     return p;
   }
-  // Public mode: map slider 1-3 to preset
   return DETAIL_PRESETS[parseInt(detailSlider.value)] || DETAIL_PRESETS[2];
 }
 
-// ── Process ──────────────────────────────────────────
+// ── Process ───────────────────────────────────────────
 btnProcess.addEventListener("click", processImage);
 
 async function processImage() {
@@ -148,7 +256,13 @@ async function processImage() {
     const data = await resp.json();
     if (data.error) throw new Error(data.error);
 
+    // Update dev preview
     svgContainer.innerHTML = data.svg;
+
+    if (data.name) {
+      generatedName.textContent = data.name;
+      nameBadge.hidden = false;
+    }
 
     const s = data.stats;
     const mins = Math.floor(s.est_seconds / 60);
@@ -159,15 +273,43 @@ async function processImage() {
     statsEl.hidden = false;
     gcodeActions.hidden = false;
 
+    // Update public stage
+    if (isPublicView) {
+      svgStage.innerHTML = data.svg;
+      const svgEl = svgStage.querySelector("svg");
+      if (svgEl) {
+        svgEl.style.width = "80vmin";
+        svgEl.style.height = "80vmin";
+        svgEl.style.display = "block";
+        svgEl.style.flexShrink = "0";
+        svgEl.style.transform = "scaleX(-1)";
+      }
+      svgStage.classList.add("is-visible");
+
+      if (data.name) {
+        stageNameValue.textContent = data.name;
+        stageName.hidden = false;
+      }
+
+      stagePrompt.innerHTML = 'press <span class="kbd">space</span> to print';
+    }
+
     currentJobId = data.job_id;
     setState(State.PREVIEW_READY);
   } catch (e) {
     setStatus(`error: ${e.message}`);
-    setState(State.CAPTURED);
+    if (isPublicView) {
+      stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
+      // Unblur and show video again on error
+      stageCanvas.classList.remove("is-blurred");
+      videoEl.style.visibility = "";
+      capturedImageData = null;
+    }
+    setState(State.CAMERA_READY);
   }
 }
 
-// ── G-code actions ────────────────────────────────────
+// ── G-code actions ─────────────────────────────────────
 btnDownload.addEventListener("click", () => {
   if (!currentJobId) return;
   const a = document.createElement("a");
@@ -189,7 +331,7 @@ btnCopyGcode.addEventListener("click", async () => {
   }
 });
 
-// ── Print ─────────────────────────────────────────────
+// ── Print ──────────────────────────────────────────────
 btnPrint.addEventListener("click", startPrint);
 
 function startPrint() {
@@ -211,10 +353,16 @@ function startPrint() {
       progressFill.style.width = pct + "%";
       progressLabel.textContent = pct + "%";
       setStatus(`printing ${pct}%`);
+
+      if (isPublicView) {
+        stageProgressFill.style.width = pct + "%";
+        stageProgressLabel.textContent = pct + "%";
+      }
     }
     if (data.done) {
       evtSource.close();
       setState(State.DONE);
+      if (isPublicView) publicReset();
     }
   };
 
@@ -225,26 +373,17 @@ function startPrint() {
   };
 }
 
-// ── Developer mode ────────────────────────────────────
-btnDevToggle.addEventListener("click", () => {
-  devMode = !devMode;
-  btnDevToggle.classList.toggle("active", devMode);
-  advancedPanel.hidden = !devMode;
-  if (devMode) loadConfig();
-});
-
+// ── Config ─────────────────────────────────────────────
 async function loadConfig() {
   try {
     const resp = await fetch("/config");
     const c = await resp.json();
-    // Contour
     cfgLevels.value  = c.contour_levels    ?? "";
     cfgBlur.value    = c.contour_blur       ?? "";
     cfgMinarc.value  = c.contour_min_arc    ?? "";
     cfgEpsilon.value = c.contour_epsilon    ?? "";
     cfgLevmin.value  = c.contour_level_min  ?? "";
     cfgLevmax.value  = c.contour_level_max  ?? "";
-    // Printer
     cfgPort.value    = c.serial_port   || "";
     cfgZdraw.value   = c.z_draw        ?? "";
     cfgZtravel.value = c.z_travel      ?? "";
@@ -289,7 +428,7 @@ btnSaveConfig.addEventListener("click", async () => {
   }
 });
 
-// ── State machine ─────────────────────────────────────
+// ── State machine ──────────────────────────────────────
 function setState(state) {
   currentState = state;
   btnCapture.disabled = false;
@@ -298,23 +437,44 @@ function setState(state) {
   progressWrap.hidden = true;
   statusCursor.style.display = "";
 
+  // Stage overlay updates
+  if (isPublicView) {
+    stageProgressWrap.hidden = true;
+  }
+
   switch (state) {
-    case State.IDLE:          setStatus("waiting for camera"); break;
-    case State.CAMERA_READY:  setStatus("ready — take a photo"); break;
+    case State.IDLE:
+      setStatus("waiting for camera");
+      break;
+
+    case State.CAMERA_READY:
+      setStatus("ready — take a photo");
+      if (isPublicView) {
+        stagePrompt.hidden = false;
+        stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
+      }
+      break;
+
     case State.CAPTURED:
       setStatus("photo captured");
       btnProcess.disabled = false;
       break;
+
     case State.PROCESSING:
       setStatus("processing...");
       btnCapture.disabled = true;
       btnProcess.disabled = true;
       statusCursor.style.display = "none";
+      if (isPublicView) {
+        stagePrompt.innerHTML = "thinking&hellip;";
+      }
       break;
+
     case State.PREVIEW_READY:
       setStatus("preview ready");
       btnPrint.disabled = false;
       break;
+
     case State.PRINTING:
       setStatus("printing 0%");
       btnCapture.disabled = true;
@@ -322,20 +482,31 @@ function setState(state) {
       progressWrap.hidden = false;
       progressFill.style.width = "0%";
       progressLabel.textContent = "0%";
+      if (isPublicView) {
+        stagePrompt.hidden = true;
+        stageProgressWrap.hidden = false;
+        stageProgressFill.style.width = "0%";
+        stageProgressLabel.textContent = "0%";
+      }
       break;
+
     case State.DONE:
       setStatus("done!");
       progressFill.style.width = "100%";
       progressLabel.textContent = "100%";
       progressWrap.hidden = false;
       btnPrint.disabled = false;
+      if (isPublicView) {
+        stageProgressFill.style.width = "100%";
+        stageProgressLabel.textContent = "100%";
+      }
       break;
   }
 }
 
 function setStatus(msg) { statusText.textContent = msg; }
 
-// ── Printer status ────────────────────────────────────
+// ── Printer status ─────────────────────────────────────
 async function checkPrinterStatus() {
   try {
     const resp = await fetch("/status");
@@ -355,7 +526,10 @@ async function checkPrinterStatus() {
   }
 }
 
-// ── Boot ──────────────────────────────────────────────
+// ── Boot ───────────────────────────────────────────────
+// Place video in stage view initially
+stageVideoWrap.appendChild(videoEl);
+
 initCamera();
 checkPrinterStatus();
 setInterval(checkPrinterStatus, 10000);

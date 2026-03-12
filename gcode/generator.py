@@ -82,6 +82,40 @@ def generate_gcode(
     return lines
 
 
+def draw_mm_polylines(
+    mm_polylines: List[List[Tuple[float, float]]],
+    config,
+) -> List[str]:
+    """
+    Generate G-code for polylines already in absolute mm coordinates.
+    No pixel→mm conversion; used for text/signature overlays.
+    Respects FLIP_Y: mirrors Y around the bed centre when enabled.
+    """
+    z_draw = config.Z_DRAW
+    z_trav = config.Z_TRAVEL
+    z_spd  = config.Z_SPEED
+    f_draw = config.FEED_DRAW
+    f_trav = config.FEED_TRAVEL
+    flip_y = config.FLIP_Y
+    dh     = config.DRAW_HEIGHT
+    oy     = config.BED_OFFSET_Y
+
+    def _y(y: float) -> float:
+        return (dh + 2 * oy) - y if flip_y else y
+
+    lines = []
+    for poly in mm_polylines:
+        if len(poly) < 2:
+            continue
+        gx, gy = poly[0][0], _y(poly[0][1])
+        lines.append(f"G0 X{gx:.3f} Y{gy:.3f} F{f_trav}")
+        lines.append(f"G1 Z{z_draw:.2f} F{z_spd}")
+        for x, y in poly[1:]:
+            lines.append(f"G1 X{x:.3f} Y{_y(y):.3f} F{f_draw}")
+        lines.append(f"G0 Z{z_trav:.2f} F{z_spd}")
+    return lines
+
+
 def estimate_draw_time(lines: List[str], config) -> int:
     total_sec = 0.0
     cx, cy = 0.0, 0.0
