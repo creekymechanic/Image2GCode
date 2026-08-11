@@ -1,13 +1,31 @@
 import time
+import threading
 from typing import List, Callable, Optional
 
 
 class Printer:
     def __init__(self, port: str, baud: int = 115200):
         import serial
-        self.ser = serial.Serial(port, baud, timeout=10)
+        self._serial_mod = serial
+        self.port = port
+        self.baud = baud
+        self.ser = None
+        self._lock = threading.Lock()
+        self._connect()
+
+    def _connect(self):
+        self.ser = self._serial_mod.Serial(self.port, self.baud, timeout=10)
         time.sleep(2)           # wait for Marlin to reset and init
         self.ser.flushInput()   # discard startup echo
+
+    @property
+    def is_connected(self) -> bool:
+        return self.ser is not None and self.ser.is_open
+
+    def ensure_connected(self):
+        """Reconnect if the serial port has dropped."""
+        if not self.is_connected:
+            self._connect()
 
     def send_line(self, line: str):
         """Send one G-code line, wait for Marlin 'ok' acknowledgment."""
@@ -15,21 +33,24 @@ class Printer:
         if not line:
             return
 
-        self.ser.write((line + '\n').encode('utf-8'))
+        self.ensure_connected()
 
-        while True:
-            resp = self.ser.readline().decode('utf-8', errors='ignore').strip()
-            if not resp:
-                continue
-            if resp.lower().startswith('ok'):
-                return
-            if resp.lower().startswith('wait'):
-                # Printer buffer full — pause briefly and resend
-                time.sleep(0.1)
-                self.ser.write((line + '\n').encode('utf-8'))
-            elif resp.lower().startswith('error'):
-                raise RuntimeError(f"Printer error: {resp}")
-            # Ignore temperature reports, echo lines, etc.
+        with self._lock:
+            self.ser.write((line + '\n').encode('utf-8'))
+
+            while True:
+                resp = self.ser.readline().decode('utf-8', errors='ignore').strip()
+                if not resp:
+                    continue
+                if resp.lower().startswith('ok'):
+                    return
+                if resp.lower().startswith('wait'):
+                    # Printer buffer full — pause briefly and resend
+                    time.sleep(0.1)
+                    self.ser.write((line + '\n').encode('utf-8'))
+                elif resp.lower().startswith('error'):
+                    raise RuntimeError(f"Printer error: {resp}")
+                # Ignore temperature reports, echo lines, etc.
 
     def send_gcode(
         self,
@@ -37,7 +58,6 @@ class Printer:
         progress_callback: Optional[Callable[[int, int], None]] = None
     ):
         """Stream all G-code lines with optional progress reporting."""
-        # Count only executable lines for progress tracking
         executable = [l for l in lines if l.split(';')[0].strip()]
         total = len(executable)
         sent = 0

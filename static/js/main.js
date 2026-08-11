@@ -2,6 +2,7 @@
 const State = {
   IDLE: "IDLE",
   CAMERA_READY: "CAMERA_READY",
+  COUNTDOWN: "COUNTDOWN",
   CAPTURED: "CAPTURED",
   PROCESSING: "PROCESSING",
   PREVIEW_READY: "PREVIEW_READY",
@@ -38,6 +39,11 @@ const stageNameValue     = document.getElementById("stage-name-value");
 const stageProgressWrap  = document.getElementById("stage-progress-wrap");
 const stageProgressFill  = document.getElementById("stage-progress-fill");
 const stageProgressLabel = document.getElementById("stage-progress-label");
+const stageCountdown     = document.getElementById("stage-countdown");
+const stageCountdownNum  = document.getElementById("stage-countdown-number");
+const stageArtQuestion   = document.getElementById("stage-art-question");
+const stagePresets       = document.getElementById("stage-presets");
+const faceGuide          = document.getElementById("face-guide");
 
 // ── DOM refs — dev layout ──────────────────────────────
 const devLayout      = document.getElementById("dev-layout");
@@ -87,8 +93,17 @@ const cfgFtravel = document.getElementById("cfg-ftravel");
 const cfgOffx    = document.getElementById("cfg-offx");
 const cfgOffy    = document.getElementById("cfg-offy");
 const cfgHome    = document.getElementById("cfg-home");
-const cfgFlipy   = document.getElementById("cfg-flipy");
+const cfgFlipy      = document.getElementById("cfg-flipy");
+const cfgOutputSize = document.getElementById("cfg-output-size");
+const cfgOutline    = document.getElementById("cfg-outline");
 const btnSaveConfig = document.getElementById("btn-save-config");
+
+// Auto-fill offset fields when output size preset changes
+cfgOutputSize.addEventListener("change", () => {
+  const sizeMm = parseInt(cfgOutputSize.value);
+  cfgOffx.value = (235 - sizeMm) / 2;
+  cfgOffy.value = (235 - sizeMm) / 2;
+});
 
 // ── View toggle ────────────────────────────────────────
 function toggleView() {
@@ -103,8 +118,8 @@ function toggleView() {
     devMode = false;
   } else {
     // Switch to dev mode
-    devVideoSlot.appendChild(videoEl);
     devVideoSlot.style.display = "";   // ensure slot is visible
+    devVideoSlot.appendChild(videoEl); // move video from stage to dev slot
     capturePreview.hidden = true;      // reset capture preview
     recBadge.classList.remove("hidden-badge");
     stageEl.hidden = true;
@@ -133,10 +148,22 @@ async function initCamera() {
 }
 
 // ── Capture ───────────────────────────────────────────
+const CAM_ZOOM = 1.6;
+
+function _drawZoomed(ctx, canvas) {
+  const vw = videoEl.videoWidth  || 640;
+  const vh = videoEl.videoHeight || 480;
+  const sw = vw / CAM_ZOOM;
+  const sh = vh / CAM_ZOOM;
+  const sx = (vw - sw) / 2;
+  const sy = (vh - sh) / 2;
+  ctx.drawImage(videoEl, sx, sy, sw, sh, 0, 0, canvas.width, canvas.height);
+}
+
 function captureFrame() {
   canvasEl.width  = videoEl.videoWidth  || 640;
   canvasEl.height = videoEl.videoHeight || 480;
-  canvasEl.getContext("2d").drawImage(videoEl, 0, 0);
+  _drawZoomed(canvasEl.getContext("2d"), canvasEl);
   return canvasEl.toDataURL("image/jpeg", 0.85);
 }
 
@@ -159,22 +186,62 @@ btnRetake.addEventListener("click", () => {
 });
 
 // ── Public mode capture (space bar) ───────────────────
+let _countdownTimer = null;
+
 function publicCapture() {
-  // Freeze frame onto stage canvas
+  // Freeze zoomed frame onto stage canvas
   stageCanvas.width  = videoEl.videoWidth  || 640;
   stageCanvas.height = videoEl.videoHeight || 480;
-  stageCanvas.getContext("2d").drawImage(videoEl, 0, 0);
+  _drawZoomed(stageCanvas.getContext("2d"), stageCanvas);
 
-  // Capture data for processing
+  // Capture data for background processing (same zoomed crop)
   canvasEl.width  = stageCanvas.width;
   canvasEl.height = stageCanvas.height;
-  canvasEl.getContext("2d").drawImage(videoEl, 0, 0);
+  _drawZoomed(canvasEl.getContext("2d"), canvasEl);
   capturedImageData = canvasEl.toDataURL("image/jpeg", 0.85);
 
-  // Hide live video, show frozen canvas with blur
+  // Hide live video (frozen frame shows instead)
   videoEl.style.visibility = "hidden";
-  stageCanvas.classList.add("is-blurred");
 
+  // Show countdown — blur and processing happen after
+  stagePrompt.hidden = true;
+  stageCountdown.hidden = false;
+  stageArtQuestion.hidden = true;
+  faceGuide.classList.add("hidden");
+  setState(State.COUNTDOWN);
+
+  let secs = 3;
+  stageCountdownNum.textContent = secs;
+
+  _countdownTimer = setInterval(() => {
+    secs--;
+    if (secs > 0) {
+      stageCountdownNum.textContent = secs;
+    } else {
+      clearInterval(_countdownTimer);
+      _countdownTimer = null;
+      _onCountdownComplete();
+    }
+  }, 1000);
+}
+
+function _cancelCountdown() {
+  if (_countdownTimer) { clearInterval(_countdownTimer); _countdownTimer = null; }
+  stageCountdown.hidden = true;
+  videoEl.style.visibility = "";
+  const ctx = stageCanvas.getContext("2d");
+  ctx.clearRect(0, 0, stageCanvas.width, stageCanvas.height);
+  capturedImageData = null;
+  stagePrompt.hidden = false;
+  stagePrompt.innerHTML = 'press <span class="kbd">space</span> to START';
+  faceGuide.classList.remove("hidden");
+  setState(State.CAMERA_READY);
+}
+
+function _onCountdownComplete() {
+  stageCountdown.hidden = true;
+  stageCanvas.classList.add("is-blurred");
+  stageArtQuestion.hidden = false;
   processImage();
 }
 
@@ -193,8 +260,13 @@ function publicReset() {
 
     // Reset overlay
     stagePrompt.hidden = false;
-    stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
+    stagePrompt.innerHTML = 'press <span class="kbd">space</span> to START';
+    stageArtQuestion.hidden = true;
+    stageCountdown.hidden = true;
     stageName.hidden = true;
+    stagePresets.hidden = true;
+    stagePresets.innerHTML = "";
+    faceGuide.classList.remove("hidden");
     stageProgressWrap.hidden = true;
     stageProgressFill.style.width = "0%";
 
@@ -215,6 +287,8 @@ document.addEventListener("keydown", (e) => {
 
   if (currentState === State.CAMERA_READY) {
     publicCapture();
+  } else if (currentState === State.COUNTDOWN) {
+    _cancelCountdown();
   } else if (currentState === State.PREVIEW_READY) {
     startPrint();
   }
@@ -275,23 +349,23 @@ async function processImage() {
 
     // Update public stage
     if (isPublicView) {
-      svgStage.innerHTML = data.svg;
-      const svgEl = svgStage.querySelector("svg");
-      if (svgEl) {
-        svgEl.style.width = "80vmin";
-        svgEl.style.height = "80vmin";
-        svgEl.style.display = "block";
-        svgEl.style.flexShrink = "0";
-        svgEl.style.transform = "scaleX(-1)";
-      }
-      svgStage.classList.add("is-visible");
+      _showStageSvg(data.svg);
 
       if (data.name) {
         stageNameValue.textContent = data.name;
         stageName.hidden = false;
       }
 
-      stagePrompt.innerHTML = 'press <span class="kbd">space</span> to print';
+      stageArtQuestion.hidden = true;
+
+      // Show preset cards if available, otherwise go straight to print prompt
+      if (data.presets && data.presets.length > 0) {
+        _renderPresets(data.presets, data.default_preset ?? 1, data.job_id);
+      } else {
+        stagePresets.hidden = true;
+        stagePrompt.hidden = false;
+        stagePrompt.innerHTML = 'press <span class="kbd">space</span> to print';
+      }
     }
 
     currentJobId = data.job_id;
@@ -299,8 +373,10 @@ async function processImage() {
   } catch (e) {
     setStatus(`error: ${e.message}`);
     if (isPublicView) {
-      stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
-      // Unblur and show video again on error
+      stageArtQuestion.hidden = true;
+      stageCountdown.hidden = true;
+      stagePrompt.hidden = false;
+      stagePrompt.innerHTML = 'press <span class="kbd">space</span> to START';
       stageCanvas.classList.remove("is-blurred");
       videoEl.style.visibility = "";
       capturedImageData = null;
@@ -330,6 +406,65 @@ btnCopyGcode.addEventListener("click", async () => {
     setStatus(`copy failed: ${e.message}`);
   }
 });
+
+// ── Stage SVG helper ───────────────────────────────────
+function _showStageSvg(svgStr) {
+  svgStage.innerHTML = svgStr;
+  const svgEl = svgStage.querySelector("svg");
+  if (svgEl) {
+    svgEl.style.width = "80vmin";
+    svgEl.style.height = "80vmin";
+    svgEl.style.display = "block";
+    svgEl.style.flexShrink = "0";
+    svgEl.style.transform = "scaleX(-1)";
+  }
+  svgStage.classList.add("is-visible");
+}
+
+// ── Preset cards ───────────────────────────────────────
+let _selectedPreset = 0;
+
+function _renderPresets(presets, defaultIdx, jobId) {
+  _selectedPreset = defaultIdx;
+  stagePresets.innerHTML = "";
+
+  presets.forEach((p, i) => {
+    const card = document.createElement("div");
+    card.className = "preset-card" + (i === defaultIdx ? " active" : "");
+    card.dataset.index = i;
+
+    const thumb = document.createElement("div");
+    thumb.className = "preset-thumb";
+    thumb.innerHTML = p.svg;
+    const svgEl = thumb.querySelector("svg");
+    if (svgEl) {
+      svgEl.removeAttribute("width");
+      svgEl.removeAttribute("height");
+      svgEl.style.transform = "scaleX(-1)";
+    }
+
+    card.appendChild(thumb);
+
+    card.addEventListener("click", async () => {
+      if (_selectedPreset === i) return;
+      _selectedPreset = i;
+      document.querySelectorAll(".preset-card").forEach(c => c.classList.remove("active"));
+      card.classList.add("active");
+      _showStageSvg(p.svg);
+      await fetch("/select-preset", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ job_id: jobId, preset_index: i }),
+      });
+    });
+
+    stagePresets.appendChild(card);
+  });
+
+  stagePresets.hidden = false;
+  stagePrompt.hidden = false;
+  stagePrompt.innerHTML = 'press <span class="kbd">space</span> to print';
+}
 
 // ── Print ──────────────────────────────────────────────
 btnPrint.addEventListener("click", startPrint);
@@ -393,6 +528,10 @@ async function loadConfig() {
     cfgOffy.value    = c.bed_offset_y  ?? "";
     cfgHome.checked  = !!c.home_on_start;
     cfgFlipy.checked = !!c.flip_y;
+    cfgOutline.checked = !!c.outline;
+    // Set output size select to closest preset
+    const w = c.draw_width ?? 100;
+    cfgOutputSize.value = w >= 150 ? "150" : "100";
   } catch { /* ignore */ }
 }
 
@@ -413,6 +552,9 @@ btnSaveConfig.addEventListener("click", async () => {
   if (cfgOffy.value)    payload.bed_offset_y  = parseFloat(cfgOffy.value);
   payload.home_on_start = cfgHome.checked;
   payload.flip_y        = cfgFlipy.checked;
+  payload.outline       = cfgOutline.checked;
+  payload.draw_width    = parseInt(cfgOutputSize.value);
+  payload.draw_height   = parseInt(cfgOutputSize.value);
 
   try {
     await fetch("/config", {
@@ -451,8 +593,13 @@ function setState(state) {
       setStatus("ready — take a photo");
       if (isPublicView) {
         stagePrompt.hidden = false;
-        stagePrompt.innerHTML = 'press <span class="kbd">space</span> to be drawn';
+        stagePrompt.innerHTML = 'press <span class="kbd">space</span> to START';
       }
+      break;
+
+    case State.COUNTDOWN:
+      setStatus("countdown...");
+      btnCapture.disabled = true;
       break;
 
     case State.CAPTURED:
@@ -533,3 +680,8 @@ stageVideoWrap.appendChild(videoEl);
 initCamera();
 checkPrinterStatus();
 setInterval(checkPrinterStatus, 10000);
+
+// Disconnect serial on browser reload / tab close so next session gets a clean connect
+window.addEventListener("beforeunload", () => {
+  navigator.sendBeacon("/disconnect");
+});

@@ -16,12 +16,25 @@
     <div id="stage-video-wrap"></div>
     <canvas id="stage-canvas" class="stage-layer"></canvas>
     <div id="svg-stage" class="stage-layer"></div>
+
+    <!-- Face alignment guide -->
+    <svg id="face-guide" viewBox="0 0 100 100" preserveAspectRatio="xMidYMid meet" xmlns="http://www.w3.org/2000/svg">
+      <ellipse cx="50" cy="44" rx="23" ry="27" fill="none" stroke="white" stroke-width="0.8"/>
+    </svg>
+
     <div id="stage-overlay">
       <div id="stage-name" hidden>
         <span class="stage-name-label">identity assigned</span>
         <span id="stage-name-value" class="mono"></span>
       </div>
-      <p id="stage-prompt">press <span class="kbd">space</span> to be drawn</p>
+      <p id="stage-prompt">press <span class="kbd">space</span> to START</p>
+
+      <div id="stage-countdown" hidden>
+        <span id="stage-countdown-number"></span>
+        <p id="stage-cancel-hint">press <span class="kbd">space</span> to CANCEL</p>
+      </div>
+      <p id="stage-art-question" hidden>What should I call this piece of art...</p>
+      <div id="stage-presets" hidden></div>
       <div id="stage-progress-wrap" hidden>
         <div id="stage-progress-track"><div id="stage-progress-fill"></div></div>
         <span id="stage-progress-label" class="mono">0%</span>
@@ -117,7 +130,22 @@
             <button id="btn-copy-gcode" class="btn-ghost btn-full">⎘ Copy G-code</button>
           </div>
 
-          <div class="adv-section-label">contour tuning</div>
+          <div class="adv-section-label">output</div>
+          <div class="config-grid">
+            <label class="cfg-row">
+              <span class="cfg-key">output size</span>
+              <select id="cfg-output-size" class="cfg-val mono">
+                <option value="100">100 × 100 mm</option>
+                <option value="150">150 × 150 mm</option>
+              </select>
+            </label>
+            <label class="cfg-row cfg-checkbox">
+              <span class="cfg-key">outline</span>
+              <input id="cfg-outline" type="checkbox">
+            </label>
+          </div>
+
+          <div class="adv-section-label" style="margin-top:8px">contour tuning</div>
           <div class="config-grid">
             <label class="cfg-row">
               <span class="cfg-key">levels</span>

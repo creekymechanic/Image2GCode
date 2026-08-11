@@ -1,5 +1,5 @@
 import numpy as np
-from .image_utils import preprocess
+from .image_utils import preprocess, extract_silhouette
 from .styles.lineart import extract_lineart
 from .styles.hatching import extract_hatching
 from .styles.stipple import extract_stipple
@@ -36,5 +36,19 @@ def run_pipeline(bgr_image: np.ndarray, style_name: str, config, params: dict = 
         polylines = style_fn(gray, bgr_processed, config, params or {})
     else:
         polylines = style_fn(gray, config, params or {})
+
+    if getattr(config, 'OUTLINE', False):
+        size = float(config.PROCESS_SIZE)
+
+        # Square frame matching the drawing area (camera crop bounding box)
+        border = [(1.0, 1.0), (size - 1.0, 1.0), (size - 1.0, size - 1.0),
+                  (1.0, size - 1.0), (1.0, 1.0)]
+        polylines = [border] + polylines
+
+        # Subject silhouette — only available after background removal
+        if getattr(config, 'REMOVE_BG', False):
+            silhouette = extract_silhouette(bgr_processed)
+            if silhouette:
+                polylines.insert(1, silhouette)
 
     return polylines

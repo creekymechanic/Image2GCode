@@ -31,6 +31,29 @@ def remove_background(bgr: np.ndarray) -> np.ndarray:
     return result_bgr
 
 
+def extract_silhouette(bgr: np.ndarray, epsilon: float = 3.0):
+    """
+    Extract the outer subject silhouette from a white-background BGR image.
+    Returns a closed polyline in pixel coordinates, or None if nothing found.
+    Expects the subject to already be composited onto a white background
+    (i.e. after remove_background has been applied).
+    """
+    gray = cv2.cvtColor(bgr, cv2.COLOR_BGR2GRAY)
+    _, mask = cv2.threshold(gray, 245, 255, cv2.THRESH_BINARY_INV)
+    kernel = cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (7, 7))
+    mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, kernel, iterations=2)
+    contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_TC89_KCOS)
+    if not contours:
+        return None
+    biggest = max(contours, key=cv2.contourArea)
+    approx = cv2.approxPolyDP(biggest, epsilon=epsilon, closed=True)
+    pts = [(float(p[0][0]), float(p[0][1])) for p in approx]
+    if len(pts) < 3:
+        return None
+    pts.append(pts[0])
+    return pts
+
+
 def preprocess(bgr: np.ndarray, size: int, remove_bg: bool = False):
     """
     Prepare a BGR image for style processing.

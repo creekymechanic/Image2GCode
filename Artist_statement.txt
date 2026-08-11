@@ -1,0 +1,9 @@
+ARTIST STATEMENT
+
+Deus Ex Machina — Portrait Engine
+
+A subject steps forward and meets the eye of a machine. In that moment, a camera captures their likeness and surrenders it to a chain of human-authored logic: the image is cropped, equalised, stripped of its background, and passed through a series of contour-tracing algorithms that reduce a face to a field of isometric lines. Threshold by threshold, the software finds edges where light meets shadow, approximating the human form as a sequence of mathematical curves. These paths are then translated into machine code — coordinates and feed rates — and transmitted to a mechanical arm that draws them, line by line, onto paper.
+
+Somewhere in this chain, a neural network that runs entirely offline and without internet — a genuine black box — reads the image and autonomously assigns it a title. No prompt, no negotiation. The work is named before it is finished. Finally, the machine signs the piece: IsoChin Peucker, a composite name honouring the Douglas-Peucker and Ramer line-simplification algorithms at the heart of the process.
+
+The result is an analogue portrait authored by code, named by inference, and signed by the machine itself — a quiet meditation on how artificial intelligence perceives, reduces, and ultimately identifies you.

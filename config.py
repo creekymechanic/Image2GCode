@@ -31,6 +31,7 @@ FLIP_Y = False         # set True if printed output is mirrored vertically
 # Image processing
 PROCESS_SIZE = 512
 REMOVE_BG = True
+OUTLINE = False    # draw a border frame + subject silhouette around the image
 
 # Contour style parameters
 CONTOUR_LEVELS    = 8     # number of brightness levels (more = more lines)

@@ -8,11 +8,21 @@ _OLLAMA_URL = "http://localhost:11434/api/generate"
 _TEXT_MODEL = "llama3.2:1b"  # pull with: ollama pull llama3.2:1b (~1 GB)
 
 _FALLBACK_NAMES = [
-    "Cinder", "Vessel", "Hinge", "Fleece", "Margin",
-    "Flicker", "Lapse", "Brine", "Tender", "Gust",
-    "Ember", "Hollow", "Drift", "Canopy", "Settle",
-    "Timber", "Linen", "Gravel", "Current", "Mantle",
-    "Fallow", "Cobble", "Wander", "Shelter", "Amber",
+    "Pioneer", "Vigil", "Charter", "Venture", "Forge",
+    "Ascent", "Beacon", "Legacy", "Epoch", "Frontier",
+    "Threshold", "Endeavor", "Luminary", "Blueprint", "Scaffold",
+    "Chronicle", "Catalyst", "Crucible", "Momentum", "Nexus",
+    "Vanguard", "Resolve", "Ardor", "Pursuit", "Quest",
+    "Compass", "Meridian", "Summit", "Zenith", "Horizon",
+    "Pinnacle", "Visionary", "Mandate", "Bastion", "Waypoint",
+    "Landmark", "Milestone", "Hallmark", "Benchmark", "Ambition",
+    "Courage", "Daring", "Inception", "Genesis", "Spark",
+    "Surge", "Drive", "Valor", "Honor", "Virtue",
+    "Merit", "Toil", "Craft", "Citadel", "Conduit",
+    "Linchpin", "Fulcrum", "Keystone", "Touchstone", "Trailhead",
+    "Kindle", "Pathfinder", "Steward", "Harbinger", "Praxis",
+    "Ethos", "Axiom", "Rampart", "Bolster", "Reckoner",
+    "Proving", "Gravity", "Tenure", "Impetus", "Torchbearer",
 ]
 
 _TEXT_PROMPT = (

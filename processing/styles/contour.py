@@ -36,6 +36,7 @@ def extract_contour(
     blurred = cv2.GaussianBlur(gray, (blur, blur), 0)
     levels = np.linspace(lev_min, lev_max, n_levels)
 
+    h_img, w_img = gray.shape[:2]
     polylines = []
     for t in levels:
         binary = (blurred > t).astype(np.uint8) * 255
@@ -44,6 +45,10 @@ def extract_contour(
         )
         for contour in contours:
             if cv2.arcLength(contour, closed=True) < min_arc:
+                continue
+            # Skip contours that are the image border (full-image bounding rect)
+            x, y, cw, ch = cv2.boundingRect(contour)
+            if x <= 2 and y <= 2 and cw >= w_img - 4 and ch >= h_img - 4:
                 continue
             approx = cv2.approxPolyDP(contour, epsilon=epsilon, closed=True)
             pts = [(float(p[0][0]), float(p[0][1])) for p in approx]

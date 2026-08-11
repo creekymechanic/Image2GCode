@@ -51,13 +51,15 @@ def generate_gcode(
 
     if home:
         lines += [
-            "G28 X Y",    # home X and Y (Marlin supports axis args)
+            "G28 X Y Z",    # home X and Y (Marlin supports axis args)
             f"G0 Z{z_trav:.2f} F{z_spd}",
         ]
     else:
+        lines.append(f"G92 X15.000 Y200.000 Z{50 + z_trav:.2f}")
         lines.append(f"G0 Z{z_trav:.2f} F{z_spd}")
 
     lines += [
+       
         f"G0 X{ox:.3f} Y{oy:.3f} F{f_trav}",
         "",
     ]
@@ -77,7 +79,9 @@ def generate_gcode(
         "",
         f"G0 Z{z_trav:.2f} F{z_spd}",
         f"G0 X{ox:.3f} Y{oy:.3f} F{f_trav}",
-        "M84",        # disable steppers
+        #"M84",        # disable steppers
+        f"G0 Z{z_trav + 50.0:.2f} F{z_spd}",   # raise an extra 50mm for clearance
+        f"G0 X15 Y200 F{f_trav}",         # return to machine home
     ]
     return lines
 
