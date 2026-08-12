@@ -14,7 +14,7 @@ def extract_hatching(
     Zone 2 (dark <80): 45° + 135° crosshatch
     """
     params = params or {}
-    spacing = params.get("hatch_spacing", config.HATCH_SPACING)
+    spacing = int(params.get("hatch_spacing", getattr(config, "HATCH_SPACING", 6)))
 
     h, w = gray.shape
     # Wider zones = fewer lines overall; zone2 only catches the darkest regions
@@ -35,14 +35,7 @@ def extract_hatching(
         if len(xs) == 0:
             continue
 
-        if angle == 45:
-            diag_vals = (xs + ys) % spacing == 0
-        else:
-            diag_vals = (xs - ys) % spacing == 0
-
-        # Keep only pixels on the hatch lines
-        on_line = mask.copy()
-        line_mask = np.zeros_like(mask, dtype=bool)
+        # Keep only pixels sitting on a hatch line
         if angle == 45:
             coords = xs + ys
         else:

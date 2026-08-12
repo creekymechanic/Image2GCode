@@ -15,17 +15,37 @@ DRAW_HEIGHT = 100.0
 BED_OFFSET_X = 67.5
 BED_OFFSET_Y = 67.5
 
-# Z axis pen control
-Z_DRAW   = 5.0   # pen touching paper (tune physically; try -0.3 if too shallow)
-Z_TRAVEL = 10.0   # pen lifted for travel
-Z_SPEED  = 1000  # mm/min for Z moves (slow = more accurate pen placement)
+# ── Z axis pen control ───────────────────────────────────────────────────────
+# Z is an ABSOLUTE machine coordinate measured up from the Z endstop, so these
+# survive a power cycle once the machine has homed. Find Z_DRAW with the guided
+# setup in the dev panel rather than by measuring.
+Z_DRAW   = 5.0    # pen just marking the paper
+Z_TRAVEL = 10.0   # pen lifted clear for travel  (= Z_DRAW + PEN_LIFT)
+Z_SPEED  = 1000   # mm/min for Z moves (slow = more accurate pen placement)
+PEN_LIFT = 1.5    # how far above Z_DRAW to lift; enough to clear, small to stay quick
+Z_MAX    = 240.0  # gantry travel limit, used to clamp calibration jogs
 
 # Feed rates (mm/min)
 FEED_DRAW   = 3000
 FEED_TRAVEL = 6000
 
-# G-code options
-HOME_ON_START = True   # G28 X Y before drawing — safe on Marlin/Ender 3
+# ── Homing ───────────────────────────────────────────────────────────────────
+# True  = home X, Y and Z automatically on the first print after startup, then
+#         trust the coordinate system for the rest of the session.
+# False = never home automatically; use the dev panel's Home button instead.
+HOME_ON_START = True
+
+# Z homes by descending until the endstop trips, so the pen touches down here
+# and leaves a dot. Keep this clear of the paper and any bulldog clips.
+Z_HOME_X = 10.0
+Z_HOME_Y = 10.0
+
+# Where the pen parks when a drawing finishes, and how far it lifts on the way
+# so the paper can be lifted out without smudging.
+PARK_X    = 15.0
+PARK_Y    = 200.0
+PARK_LIFT = 50.0
+
 FLIP_Y = False         # set True if printed output is mirrored vertically
 
 # Image processing

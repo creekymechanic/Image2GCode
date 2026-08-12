@@ -13,7 +13,7 @@ def extract_stipple(
     so it's visible in the SVG preview and large enough for the printer to draw.
     """
     params = params or {}
-    n_dots = params.get("stipple_dots", config.STIPPLE_DOTS)
+    n_dots = int(params.get("stipple_dots", getattr(config, "STIPPLE_DOTS", 4000)))
     stroke_len = params.get("stipple_stroke", 3.0)  # px
 
     inverted = 255 - gray.astype(np.float64)

@@ -264,60 +264,6 @@ header {
   gap: 10px;
 }
 
-/* Style cards */
-#style-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 6px;
-}
-
-/* Detail slider */
-#detail-control {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.detail-labels {
-  display: flex;
-  justify-content: space-between;
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  color: var(--muted);
-  padding: 0 2px;
-}
-
-#detail-slider {
-  -webkit-appearance: none;
-  appearance: none;
-  width: 100%;
-  height: 3px;
-  background: var(--border);
-  border-radius: 2px;
-  outline: none;
-  cursor: pointer;
-}
-
-#detail-slider::-webkit-slider-thumb {
-  -webkit-appearance: none;
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--red);
-  cursor: pointer;
-  border: 2px solid var(--bg);
-  box-shadow: 0 0 0 1px var(--red);
-}
-
-#detail-slider::-moz-range-thumb {
-  width: 14px;
-  height: 14px;
-  border-radius: 50%;
-  background: var(--red);
-  cursor: pointer;
-  border: 2px solid var(--bg);
-}
-
 .cfg-checkbox {
   align-items: center;
 }
@@ -327,55 +273,6 @@ header {
   height: 16px;
   accent-color: var(--red);
   cursor: pointer;
-}
-
-.style-card {
-  background: var(--surface);
-  border: 1px solid var(--border);
-  border-radius: var(--rad);
-  padding: 12px 8px;
-  cursor: pointer;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 5px;
-  color: var(--muted2);
-  font-family: var(--font-sans);
-  transition: border-color 0.15s, color 0.15s, background 0.15s;
-  text-align: center;
-}
-
-.style-card:hover {
-  border-color: var(--border-hi);
-  color: var(--text);
-}
-
-.style-card.selected {
-  border-color: var(--red);
-  background: #1a0a0d;
-  color: var(--text);
-}
-
-.style-glyph {
-  font-family: var(--font-mono);
-  font-size: 0.65rem;
-  line-height: 1.4;
-  color: inherit;
-  display: block;
-  opacity: 0.8;
-}
-
-.style-card.selected .style-glyph { opacity: 1; color: var(--red); }
-
-.style-name {
-  font-size: 0.82rem;
-  font-weight: 600;
-  letter-spacing: 0.02em;
-}
-
-.style-hint {
-  font-size: 0.65rem;
-  color: var(--muted);
 }
 
 /* Status bar */
@@ -600,6 +497,63 @@ button:not(:disabled):active { transform: scale(0.97); }
 .cfg-val:focus {
   outline: none;
   border-color: var(--amber);
+}
+
+/* Port field + its detect button share the space one .cfg-val would take */
+.cfg-port-group {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cfg-port-group .cfg-val { width: 78px; }
+
+.btn-inline {
+  background: none;
+  color: var(--muted2);
+  border: 1px solid var(--border);
+  border-radius: var(--rad);
+  padding: 4px 7px;
+  font-family: var(--font-mono);
+  font-size: 0.66rem;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: border-color 0.15s, color 0.15s;
+}
+
+.btn-inline:hover:not(:disabled) {
+  border-color: var(--amber);
+  color: var(--text);
+}
+
+/* ── Pen height calibration ─────────────────────────── */
+#calibrate-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.cal-hint {
+  font-size: 0.65rem;
+  line-height: 1.45;
+  color: var(--muted);
+}
+
+.cal-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.cal-jog .cal-step { flex: 1; text-align: center; }
+
+.btn-grow { flex: 1; }
+
+.cal-z {
+  margin-left: auto;
+  font-size: 0.72rem;
+  color: var(--amber);
+  white-space: nowrap;
 }
 
 /* ── Preview panel ──────────────────────────────────── */
@@ -938,18 +892,6 @@ button:not(:disabled):active { transform: scale(0.97); }
   width: 100%;
   height: 100%;
   display: block;
-}
-
-.preset-label {
-  font-family: var(--font-mono);
-  font-size: clamp(0.6rem, 1.5vw, 0.85rem);
-  color: rgba(255,255,255,0.8);
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-}
-
-.preset-card.active .preset-label {
-  color: var(--teal);
 }
 
 .kbd {

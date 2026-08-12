@@ -1,6 +1,11 @@
 from datetime import datetime
 from typing import List, Tuple
 import math
+import re
+
+_RE_X = re.compile(r'X([-\d.]+)')
+_RE_Y = re.compile(r'Y([-\d.]+)')
+_RE_F = re.compile(r'F([-\d.]+)')
 
 
 def pixel_to_mm(
@@ -19,15 +24,72 @@ def pixel_to_mm(
     return gx, gy
 
 
+def gcode_home(config) -> List[str]:
+    """
+    Establish the machine's coordinate reference. Emit once per session.
+
+    XY homes first — that involves no Z motion, so it is always safe. Then the
+    gantry moves clear of the paper before Z homes, because Z homing descends
+    until the endstop trips and the pen touches down wherever it happens to be.
+
+    Homing Z is what makes Z an absolute datum measured up from the endstop, so
+    Z_DRAW keeps its meaning across power cycles. It relies on a spring-loaded
+    (floating) pen mount: the tip rides up as the gantry completes its descent.
+    **With a rigid pen holder this would drive the tip into the bed** — such a
+    setup must home XY only and set Z by hand.
+    """
+    return [
+        "; >> home",
+        "G28 X Y",                                    # no Z motion — always safe
+        f"G0 X{config.Z_HOME_X:.3f} Y{config.Z_HOME_Y:.3f} F{config.FEED_TRAVEL}",
+        "G28 Z",                                      # pen touches down here
+        f"G0 Z{config.Z_TRAVEL:.2f} F{config.Z_SPEED}",
+        "; << home",
+    ]
+
+
+def gcode_footer(config) -> List[str]:
+    """
+    Park moves emitted after all drawing is done: pen up, back to the drawing
+    origin, then raise PARK_LIFT for clearance and go to PARK_X/PARK_Y so the
+    paper can be lifted out without smudging.
+
+    Kept separate from generate_gcode so callers that append overlays (name
+    label, signature) can place them *before* the park moves without having to
+    slice a fixed number of lines off the end of the program.
+    """
+    lift = getattr(config, "PARK_LIFT", 50.0)
+    return [
+        "",
+        f"G0 Z{config.Z_TRAVEL:.2f} F{config.Z_SPEED}",
+        f"G0 X{config.BED_OFFSET_X:.3f} Y{config.BED_OFFSET_Y:.3f} F{config.FEED_TRAVEL}",
+        f"G0 Z{config.Z_TRAVEL + lift:.2f} F{config.Z_SPEED}",   # clear of the paper
+        f"G0 X{getattr(config, 'PARK_X', 15.0):.3f} "
+        f"Y{getattr(config, 'PARK_Y', 200.0):.3f} F{config.FEED_TRAVEL}",
+    ]
+
+
 def generate_gcode(
     polylines: List[List[Tuple[float, float]]],
     config,
     style_name: str = "contour",
+    include_footer: bool = True,
+    include_home: bool | None = None,
 ) -> List[str]:
     """
     Convert ordered polylines to Marlin G-code (Creality Ender 3).
     Drawing is centered on the bed using BED_OFFSET_X/Y.
+
+    include_footer=False returns the program body only, so the caller can append
+    overlay lines followed by gcode_footer(config).
+
+    include_home defaults to config.HOME_ON_START. Pass False for a program that
+    will be streamed to an already-homed machine — the server homes once per
+    session rather than once per drawing. A program with homing omitted assumes
+    Z is already referenced; there is no G92 fallback that invents a datum.
     """
+    if include_home is None:
+        include_home = getattr(config, "HOME_ON_START", True)
     size   = config.PROCESS_SIZE
     dw     = config.DRAW_WIDTH
     dh     = config.DRAW_HEIGHT
@@ -39,27 +101,21 @@ def generate_gcode(
     f_draw = config.FEED_DRAW
     f_trav = config.FEED_TRAVEL
     flip_y = config.FLIP_Y
-    home   = config.HOME_ON_START
 
     lines = [
         f"; Image2Drawing — {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}",
         f"; Style: {style_name} | Paths: {len(polylines)}",
         f"; Draw area: {dw}x{dh}mm offset ({ox},{oy}) on {config.BED_WIDTH}x{config.BED_HEIGHT}mm bed",
+        f"; Pen: draw Z{z_draw} / travel Z{z_trav}",
         "G21",        # mm
         "G90",        # absolute
     ]
 
-    if home:
-        lines += [
-            "G28 X Y Z",    # home X and Y (Marlin supports axis args)
-            f"G0 Z{z_trav:.2f} F{z_spd}",
-        ]
-    else:
-        lines.append(f"G92 X15.000 Y200.000 Z{50 + z_trav:.2f}")
-        lines.append(f"G0 Z{z_trav:.2f} F{z_spd}")
+    if include_home:
+        lines += gcode_home(config)
 
     lines += [
-       
+        f"G0 Z{z_trav:.2f} F{z_spd}",   # pen up before the first traverse
         f"G0 X{ox:.3f} Y{oy:.3f} F{f_trav}",
         "",
     ]
@@ -75,14 +131,8 @@ def generate_gcode(
             lines.append(f"G1 X{gx:.3f} Y{gy:.3f} F{f_draw}")
         lines.append(f"G0 Z{z_trav:.2f} F{z_spd}")
 
-    lines += [
-        "",
-        f"G0 Z{z_trav:.2f} F{z_spd}",
-        f"G0 X{ox:.3f} Y{oy:.3f} F{f_trav}",
-        #"M84",        # disable steppers
-        f"G0 Z{z_trav + 50.0:.2f} F{z_spd}",   # raise an extra 50mm for clearance
-        f"G0 X15 Y200 F{f_trav}",         # return to machine home
-    ]
+    if include_footer:
+        lines += gcode_footer(config)
     return lines
 
 
@@ -121,6 +171,10 @@ def draw_mm_polylines(
 
 
 def estimate_draw_time(lines: List[str], config) -> int:
+    """Rough wall-clock estimate in seconds, from XY travel distance / feed rate.
+
+    Ignores Z moves and acceleration, so real prints run somewhat longer.
+    """
     total_sec = 0.0
     cx, cy = 0.0, 0.0
     current_feed = config.FEED_TRAVEL
@@ -136,10 +190,9 @@ def estimate_draw_time(lines: List[str], config) -> int:
         if cmd not in ('G0', 'G1'):
             continue
 
-        import re
-        x_m = re.search(r'X([-\d.]+)', line)
-        y_m = re.search(r'Y([-\d.]+)', line)
-        f_m = re.search(r'F([-\d.]+)', line)
+        x_m = _RE_X.search(line)
+        y_m = _RE_Y.search(line)
+        f_m = _RE_F.search(line)
 
         if f_m:
             current_feed = float(f_m.group(1))

@@ -16,13 +16,6 @@ let capturedImageData = null;
 let isPublicView = true;  // start in public/stage mode
 let devMode = false;
 
-// Detail slider presets → contour params
-const DETAIL_PRESETS = {
-  1: { contour_levels: 5,  contour_blur: 13, contour_min_arc: 50, contour_epsilon: 5.0 },
-  2: { contour_levels: 8,  contour_blur: 9,  contour_min_arc: 30, contour_epsilon: 3.0 },
-  3: { contour_levels: 14, contour_blur: 5,  contour_min_arc: 15, contour_epsilon: 1.5 },
-};
-
 // ── DOM refs — shared ──────────────────────────────────
 const videoEl        = document.getElementById("webcam");
 const canvasEl       = document.getElementById("capture-canvas");
@@ -67,7 +60,6 @@ const generatedName  = document.getElementById("generated-name");
 const printerPill    = document.getElementById("printer-pill");
 const printerLabel   = document.getElementById("printer-label");
 const advancedPanel  = document.getElementById("advanced-panel");
-const detailSlider   = document.getElementById("detail-slider");
 const statsEl        = document.getElementById("stats");
 const statPaths      = document.getElementById("stat-paths");
 const statTime       = document.getElementById("stat-time");
@@ -85,7 +77,8 @@ const cfgLevmin  = document.getElementById("cfg-levmin");
 const cfgLevmax  = document.getElementById("cfg-levmax");
 
 // Printer inputs
-const cfgPort    = document.getElementById("cfg-port");
+const cfgPort       = document.getElementById("cfg-port");
+const btnDetectPort = document.getElementById("btn-detect-port");
 const cfgZdraw   = document.getElementById("cfg-zdraw");
 const cfgZtravel = document.getElementById("cfg-ztravel");
 const cfgFdraw   = document.getElementById("cfg-fdraw");
@@ -295,18 +288,19 @@ document.addEventListener("keydown", (e) => {
 });
 
 // ── Build contour params ──────────────────────────────
+// Dev mode overrides the server's four presets with whatever is in the tuning
+// fields. Public mode sends nothing so the stage keeps four distinct presets.
 function getContourParams() {
-  if (devMode) {
-    const p = {};
-    if (cfgLevels.value)  p.contour_levels    = parseInt(cfgLevels.value);
-    if (cfgBlur.value)    p.contour_blur       = parseInt(cfgBlur.value);
-    if (cfgMinarc.value)  p.contour_min_arc    = parseFloat(cfgMinarc.value);
-    if (cfgEpsilon.value) p.contour_epsilon    = parseFloat(cfgEpsilon.value);
-    if (cfgLevmin.value)  p.contour_level_min  = parseFloat(cfgLevmin.value);
-    if (cfgLevmax.value)  p.contour_level_max  = parseFloat(cfgLevmax.value);
-    return p;
-  }
-  return DETAIL_PRESETS[parseInt(detailSlider.value)] || DETAIL_PRESETS[2];
+  if (!devMode) return {};
+
+  const p = {};
+  if (cfgLevels.value)  p.contour_levels     = parseInt(cfgLevels.value);
+  if (cfgBlur.value)    p.contour_blur       = parseInt(cfgBlur.value);
+  if (cfgMinarc.value)  p.contour_min_arc    = parseFloat(cfgMinarc.value);
+  if (cfgEpsilon.value) p.contour_epsilon    = parseFloat(cfgEpsilon.value);
+  if (cfgLevmin.value)  p.contour_level_min  = parseFloat(cfgLevmin.value);
+  if (cfgLevmax.value)  p.contour_level_max  = parseFloat(cfgLevmax.value);
+  return p;
 }
 
 // ── Process ───────────────────────────────────────────
@@ -483,6 +477,12 @@ function startPrint() {
       setState(State.PREVIEW_READY);
       return;
     }
+    if (data.status === "homing") {
+      // First drawing of the session; the printer finds its endstops once
+      setStatus("homing printer… (~30s, once per session)");
+      if (isPublicView) stagePrompt.hidden = true;
+      return;
+    }
     if (data.progress !== undefined) {
       const pct = data.progress;
       progressFill.style.width = pct + "%";
@@ -534,6 +534,102 @@ async function loadConfig() {
     cfgOutputSize.value = w >= 150 ? "150" : "100";
   } catch { /* ignore */ }
 }
+
+// ── Pen height calibration ─────────────────────────────
+// Finds Z_DRAW as an absolute machine coordinate, so it survives a power cycle.
+const calZ        = document.getElementById("cal-z");
+const btnCalHome  = document.getElementById("btn-cal-home");
+const btnCalTest  = document.getElementById("btn-cal-test");
+const btnCalSave  = document.getElementById("btn-cal-save");
+const calStepBtns = document.querySelectorAll(".cal-step");
+
+function _calButtons(disabled) {
+  [btnCalHome, btnCalTest, btnCalSave, ...calStepBtns]
+    .forEach(b => { b.disabled = disabled; });
+}
+
+async function calibrate(action, extra = {}) {
+  _calButtons(true);
+  try {
+    const resp = await fetch("/calibrate", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action, ...extra }),
+    });
+    const r = await resp.json();
+
+    if (r.error) {
+      setStatus(`calibrate: ${r.error}`);
+    } else {
+      if (r.current_z !== null && r.current_z !== undefined) {
+        calZ.textContent = `Z ${r.current_z.toFixed(2)}`;
+      }
+      if (action === "save") {
+        cfgZdraw.value   = r.z_draw;
+        cfgZtravel.value = r.z_travel;
+        setStatus(`saved pen height: draw Z${r.z_draw} / travel Z${r.z_travel}`);
+      } else if (action === "home") {
+        setStatus("homed — Z is now referenced from the endstop");
+      }
+    }
+    return r;
+  } catch (e) {
+    setStatus(`calibrate failed: ${e.message}`);
+  } finally {
+    _calButtons(false);
+  }
+}
+
+btnCalHome.addEventListener("click", () => {
+  setStatus("homing… (~30s)");
+  calibrate("home");
+});
+btnCalTest.addEventListener("click", () => calibrate("test"));
+btnCalSave.addEventListener("click", () => calibrate("save"));
+calStepBtns.forEach(btn => {
+  btn.addEventListener("click", () =>
+    calibrate("jog", { dz: parseFloat(btn.dataset.dz) }));
+});
+
+// ── Port auto-detection ────────────────────────────────
+// Handshakes each plausible port with M115. This reboots the boards it probes
+// and takes a few seconds per port, so it only runs when asked.
+btnDetectPort.addEventListener("click", async () => {
+  const original = btnDetectPort.textContent;
+  btnDetectPort.disabled = true;
+  btnDetectPort.textContent = "scanning…";
+  setStatus("scanning serial ports…");
+
+  try {
+    const resp = await fetch("/detect-port", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ probe: true, save: true }),
+    });
+    const r = await resp.json();
+
+    if (r.error) {
+      setStatus(`detect failed: ${r.error}`);
+      btnDetectPort.textContent = "failed";
+    } else if (r.port) {
+      cfgPort.value = r.port;
+      btnDetectPort.textContent = "✓ " + r.port;
+      setStatus(r.firmware ? `found ${r.port} — ${r.firmware}`
+                           : `found ${r.port} (${r.method})`);
+      checkPrinterStatus();
+    } else {
+      const tried = (r.candidates || []).map(c => c.device).join(", ") || "none";
+      btnDetectPort.textContent = "not found";
+      setStatus(`no printer answered. tried: ${tried}`);
+    }
+  } catch (e) {
+    btnDetectPort.textContent = "failed";
+    setStatus(`detect failed: ${e.message}`);
+  }
+
+  btnDetectPort.disabled = false;
+  setTimeout(() => { btnDetectPort.textContent = original; }, 4000);
+});
 
 btnSaveConfig.addEventListener("click", async () => {
   const payload = {};
@@ -661,11 +757,18 @@ async function checkPrinterStatus() {
     if (data.printer_found) {
       printerPill.classList.add("online");
       printerLabel.textContent = data.configured_port;
+      printerPill.title = `Connected on ${data.configured_port}`;
     } else {
       printerPill.classList.remove("online");
-      printerLabel.textContent = "no printer";
+      // Show the likely port rather than a bare "no printer" when we have a guess
+      printerLabel.textContent = data.suggested_port
+        ? `try ${data.suggested_port}` : "no printer";
       const avail = data.available_ports.join(", ") || "none";
-      printerPill.title = `${data.configured_port} not found. Available: ${avail}`;
+      printerPill.title =
+        `${data.configured_port || "No port set"} not found. Available: ${avail}.` +
+        (data.suggested_port
+          ? ` ${data.suggested_port} looks like a printer — press "detect" in dev tools to confirm.`
+          : "");
     }
   } catch {
     printerPill.classList.remove("online");

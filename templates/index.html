@@ -84,18 +84,7 @@
 
       <!-- ── 02 CONTROLS ─────────────────────────────── -->
       <section id="controls-panel">
-        <div class="section-label"><span class="label-num">02</span> detail</div>
-
-        <div id="detail-control">
-          <div class="detail-labels">
-            <span>fast</span>
-            <span>balanced</span>
-            <span>detailed</span>
-          </div>
-          <input id="detail-slider" type="range" min="1" max="3" value="2" step="1">
-        </div>
-
-        <div class="section-label" style="margin-top:8px"><span class="label-num">03</span> run</div>
+        <div class="section-label"><span class="label-num">02</span> run</div>
 
         <div id="status-bar">
           <span class="status-prompt">›</span>
@@ -173,11 +162,38 @@
             </label>
           </div>
 
+          <div class="adv-section-label" style="margin-top:8px">pen height</div>
+          <div id="calibrate-panel">
+            <p class="cal-hint">
+              Home, then lower the pen until a test line just marks the paper —
+              the lightest height that draws consistently, not the darkest.
+            </p>
+            <div class="cal-row">
+              <button id="btn-cal-home" class="btn-inline" type="button"
+                      title="Home X, Y and Z. Z touches down at the corner, away from the paper.">⌂ home</button>
+              <span id="cal-z" class="cal-z mono">Z —</span>
+            </div>
+            <div class="cal-row cal-jog">
+              <button class="btn-inline cal-step" data-dz="-1"    type="button">−1</button>
+              <button class="btn-inline cal-step" data-dz="-0.1"  type="button">−0.1</button>
+              <button class="btn-inline cal-step" data-dz="0.1"   type="button">+0.1</button>
+              <button class="btn-inline cal-step" data-dz="1"     type="button">+1</button>
+            </div>
+            <div class="cal-row">
+              <button id="btn-cal-test" class="btn-inline btn-grow" type="button">✎ test line</button>
+              <button id="btn-cal-save" class="btn-inline btn-grow" type="button">✓ use this height</button>
+            </div>
+          </div>
+
           <div class="adv-section-label" style="margin-top:8px">printer config</div>
           <div class="config-grid">
             <label class="cfg-row">
               <span class="cfg-key">port</span>
-              <input id="cfg-port"     class="cfg-val mono" type="text"   placeholder="COM3">
+              <span class="cfg-port-group">
+                <input id="cfg-port" class="cfg-val mono" type="text" placeholder="COM3">
+                <button id="btn-detect-port" type="button" class="btn-inline"
+                        title="Handshake each port with M115 to find the printer. Resets the boards it probes.">detect</button>
+              </span>
             </label>
             <label class="cfg-row">
               <span class="cfg-key">Z draw</span>
@@ -217,9 +233,9 @@
 
       </section>
 
-      <!-- ── 04 PREVIEW ──────────────────────────────── -->
+      <!-- ── 03 PREVIEW ──────────────────────────────── -->
       <section id="preview-panel">
-        <div class="section-label"><span class="label-num">04</span> preview</div>
+        <div class="section-label"><span class="label-num">03</span> preview</div>
 
         <div id="name-badge" hidden>
           <span class="name-label">identity assigned</span>
